@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: 'vpn-bot'
+    static_configs:
+      - targets: ['vpn-bot']
+    metrics_path: "/metrics"

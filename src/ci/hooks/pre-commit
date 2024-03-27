@@ -1,0 +1,56 @@
+#!/bin/sh
+
+yaml_file="ci-stages.yml"
+target_dir="src/ci/stages"
+
+for file in $target_dir/*; do
+    git rm $file
+done
+
+mkdir -p $target_dir
+
+while IFS= read -r line; do
+    if [[ $line =~ ^([a-zA-Z_]+):' '(true|false)$ ]]; then
+        param_name="${BASH_REMATCH[1]}"
+        param_value="${BASH_REMATCH[2]}"
+
+        target_file="$target_dir/$param_name"
+
+        if [ "$param_value" == "true" ]; then
+            if [ ! -f "$target_file" ]; then
+                touch "$target_file"
+            fi
+        elif [ "$param_value" == "false" ]; then
+            if [ -f "$target_file" ]; then
+                rm "$target_file"
+            fi
+        fi
+    fi
+done < "$yaml_file"
+
+git add $target_dir/*
+
+DIR="src/k8s/environment/secrets_local"
+R_DIR="src/k8s/environment/secrets_remote"
+KEY="$(git config user.email)"
+
+mkdir -p "$R_DIR"
+
+hash=$(echo $(cat $DIR/*) | md5sum)
+old_hash=$(cat $R_DIR/hash)
+
+if [ "$hash" != "$old_hash" ]; then
+    rm -rf $R_DIR
+    mkdir -p "$R_DIR"
+    for file in $DIR/*; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            gpg -e -r $KEY -o "$R_DIR/$filename" "$file"
+        fi
+    done
+    echo "$hash" > "$R_DIR/hash"
+fi
+
+git add $R_DIR/*
+
+exit 0

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: socat
+  namespace: vpn
+  labels:
+    name: socat
+spec:
+  type: NodePort
+  ports:
+    - name: socat-tcp
+      targetPort: 22496
+      protocol: TCP
+      port: 22496
+      nodePort: 32496
+  selector:
+    name: socat

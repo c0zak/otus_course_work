@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vpn-bot
+  namespace: vpn
+  labels:
+    name: vpn-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: vpn-bot
+  template:
+    metadata:
+      labels:
+        name: vpn-bot
+    spec:
+      serviceAccountName: vpn-bot
+      volumes:
+        - name: vpn-bot-config
+          secret:
+            secretName: vpn-bot-config
+        - name: ssl
+          projected:
+            sources:
+              - secret:
+                  name: ca-crt
+              - secret:
+                  name: ca-key
+              - secret:
+                  name: tls-static
+              - secret:
+                  name: config-cnf
+              - secret:
+                  name: ovpn-template
+        - name: kube-config
+          secret:
+            secretName: kube-config
+      containers:
+        - name: vpn-bot
+          image: "ublin/vpn-bot:latest"
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: vpn-bot-config
+              mountPath: "/config"
+              readOnly: true
+            - name: ssl
+              mountPath: "/ssl"
+              readOnly: true
+            - name: kube-config
+              mountPath: "/root/.kube/"
+              readOnly: true

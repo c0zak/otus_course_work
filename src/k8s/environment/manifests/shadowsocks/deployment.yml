@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shadowsocks
+  namespace: vpn
+  labels:
+    name: shadowsocks
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: shadowsocks
+  template:
+    metadata:
+      labels:
+        name: shadowsocks
+    spec:
+      serviceAccountName: shadowsocks
+      volumes:
+        - name: ss-config
+          secret:
+            secretName: ss-config
+      containers:
+        - name: shadowsocks
+          image: "ublin/shadowsocks:latest"
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: ss-config
+              mountPath: "/config"
+              readOnly: true
+          ports:
+            - name: ss-tcp
+              containerPort: 22497
+              protocol: TCP

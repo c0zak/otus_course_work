@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+group = 'home.vpn.bot'
+version = '0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.json:json:20231013'
+    implementation 'com.jcraft:jsch:0.1.55'
+    implementation 'org.postgresql:postgresql:42.7.3'
+    implementation 'org.telegram:telegrambots:6.7.0'
+    implementation 'io.fabric8:kubernetes-client:6.10.0'
+}
+
+shadowJar {
+    manifest {
+        attributes 'Main-Class': 'home.vpn.bot.Main'
+    }
+}

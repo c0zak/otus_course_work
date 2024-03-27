@@ -1,0 +1,346 @@
+image: docker:stable
+
+variables:
+  DOCKER_HOST: tcp://$CI_DOCKER_HOST_IP:2375
+  DOCKER_TLS_CERTDIR: ""
+
+stages:
+  - build_worker
+  - build_postgres
+  - build_shadowsocks
+  - build_socat
+  - build_stubby
+  - build_app
+  - deploy_secrets
+  - deploy_postgres
+  - deploy_shadowsocks
+  - deploy_socat
+  - deploy_stubby
+  - deploy_nExporter
+  - deploy_prometheus
+  - deploy_grafana
+  - deploy_app
+
+build_worker:
+  stage: build_worker
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/worker src/k8s/environment/builders/worker
+    - docker push $CI_REGISTRY_USER/worker
+  rules:
+    - exists:
+        - src/ci/stages/build_worker
+    - changes:
+        paths:
+          - src/k8s/environment/builders/worker/*
+
+build_postgres:
+  stage: build_postgres
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/postgres src/k8s/environment/builders/postgres
+    - docker push $CI_REGISTRY_USER/postgres
+  rules:
+    - exists:
+        - src/ci/stages/build_postgres
+    - changes:
+        paths:
+          - src/k8s/environment/builders/postgres/*
+
+build_shadowsocks:
+  stage: build_shadowsocks
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/shadowsocks src/k8s/environment/builders/shadowsocks
+    - docker push $CI_REGISTRY_USER/shadowsocks
+  rules:
+    - exists:
+        - src/ci/stages/build_shadowsocks
+    - changes:
+        paths:
+          - src/k8s/environment/builders/shadowsocks/*
+
+build_socat:
+  stage: build_socat
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/socat src/k8s/environment/builders/socat
+    - docker push $CI_REGISTRY_USER/socat
+  rules:
+    - exists:
+        - src/ci/stages/build_socat
+    - changes:
+        paths:
+          - src/k8s/environment/builders/socat/*
+
+build_stubby:
+  stage: build_stubby
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/stubby src/k8s/environment/builders/stubby
+    - docker push $CI_REGISTRY_USER/stubby
+  rules:
+    - exists:
+        - src/ci/stages/build_stubby
+    - changes:
+        paths:
+          - src/k8s/environment/builders/stubby/*
+
+build_app:
+  stage: build_app
+  image: docker:stable
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --progress=plain -t $CI_REGISTRY_USER/vpn-bot:latest .
+    - docker push $CI_REGISTRY_USER/vpn-bot:latest
+  rules:
+    - exists:
+        - src/ci/stages/build_app
+    - changes:
+        paths:
+          - src/main/java/home/vpn/bot/*
+
+deploy_secrets:
+  stage: deploy_secrets
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - mkdir /secrets
+    - gpg -d src/k8s/environment/secrets_remote/ss-config.json > /secrets/ss-config.json
+    - gpg -d src/k8s/environment/secrets_remote/socat.conf > /secrets/socat.conf
+    - gpg -d src/k8s/environment/secrets_remote/stubby.yml > /secrets/stubby.yml
+    - gpg -d src/k8s/environment/secrets_remote/vpn.json > /secrets/vpn.json
+    - gpg -d src/k8s/environment/secrets_remote/ca.crt > /secrets/ca.crt
+    - gpg -d src/k8s/environment/secrets_remote/ca.key > /secrets/ca.key
+    - gpg -d src/k8s/environment/secrets_remote/tls.static > /secrets/tls.static
+    - gpg -d src/k8s/environment/secrets_remote/config.cnf > /secrets/config.cnf
+    - gpg -d src/k8s/environment/secrets_remote/client.ovpn > /secrets/client.ovpn
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > /secrets/config
+    - gpg -d src/k8s/environment/secrets_remote/prometheus.yml > /secrets/prometheus.yml
+    - cd /secrets
+    - kubectl create namespace vpn --dry-run=client -o yaml | kubectl apply -f -
+    - kubectl -n vpn delete secrets ss-config socat-config stubby-config vpn-bot-config ca-crt ca-key tls-static config-cnf ovpn-template kube-config || true
+    - kubectl -n monitoring delete secrets prometheus-config || true
+    - kubectl create secret generic ss-config --from-file=ss-config.json --namespace=vpn
+    - kubectl create secret generic socat-config --from-file=socat.conf --namespace=vpn
+    - kubectl create secret generic stubby-config --from-file=stubby.yml --namespace=vpn
+    - kubectl create secret generic vpn-bot-config --from-file=vpn.json --namespace=vpn
+    - kubectl create secret generic ca-crt --from-file=ca.crt --namespace=vpn
+    - kubectl create secret generic ca-key --from-file=ca.key --namespace=vpn
+    - kubectl create secret generic tls-static --from-file=tls.static --namespace=vpn
+    - kubectl create secret generic config-cnf --from-file=config.cnf --namespace=vpn
+    - kubectl create secret generic ovpn-template --from-file=client.ovpn --namespace=vpn
+    - kubectl create secret generic kube-config --from-file=config --namespace=vpn
+    - kubectl create secret generic prometheus-config --from-file=prometheus.yml --namespace=monitoring
+  rules:
+    - exists:
+        - src/ci/stages/deploy_secrets
+    - changes:
+        paths:
+          - src/k8s/environment/secrets_remote/*
+          - src/k8s/environment/manifests/*
+          - src/main/*
+
+deploy_postgres:
+  stage: deploy_postgres
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - mkdir /secrets
+    - gpg -d src/k8s/environment/secrets_remote/postgres.passwd > /secrets/postgres.passwd
+    - sed -i "s/{{PASSWORD}}/$(cat /secrets/postgres.passwd)/g" src/k8s/environment/manifests/postgres/deployment.yml
+    - kubectl -n vpn delete serviceaccounts postgres || true
+    - kubectl -n vpn delete service postgres || true
+    - kubectl -n vpn delete deployments.apps postgres || true
+    - kubectl -n vpn delete pvc psql-storage-pvc || true
+    - kubectl delete pv psql-storage-pv || true
+    - kubectl apply -f src/k8s/environment/manifests/postgres/data-storage.yml
+    - kubectl apply -f src/k8s/environment/manifests/postgres/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/postgres/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/postgres/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_postgres
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/postgres/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_shadowsocks:
+  stage: deploy_shadowsocks
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n vpn delete serviceaccounts shadowsocks || true
+    - kubectl -n vpn delete service shadowsocks || true
+    - kubectl -n vpn delete deployments.apps shadowsocks || true
+    - kubectl apply -f src/k8s/environment/manifests/shadowsocks/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/shadowsocks/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/shadowsocks/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_shadowsocks
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/shadowsocks/*
+          - src/k8s/environment/builders/shadowsocks/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_socat:
+  stage: deploy_socat
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n vpn delete serviceaccounts socat || true
+    - kubectl -n vpn delete service socat || true
+    - kubectl -n vpn delete deployments.apps socat || true
+    - kubectl apply -f src/k8s/environment/manifests/socat/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/socat/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/socat/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_socat
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/socat/*
+          - src/k8s/environment/builders/socat/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_stubby:
+  stage: deploy_stubby
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n vpn delete serviceaccounts stubby || true
+    - kubectl -n vpn delete service stubby || true
+    - kubectl -n vpn delete deployments.apps stubby || true
+    - kubectl apply -f src/k8s/environment/manifests/stubby/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/stubby/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/stubby/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_stubby
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/stubby/*
+          - src/k8s/environment/builders/stubby/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_nExporter:
+  stage: deploy_nExporter
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n monitoring delete daemonsets.apps node-exporter || true
+    - kubectl -n monitoring delete service node-exporter || true
+    - kubectl apply -f src/k8s/environment/manifests/node-exporter/daemonSet.yml
+    - kubectl apply -f src/k8s/environment/manifests/node-exporter/service.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_nExporter
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/node-exporter/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_prometheus:
+  stage: deploy_prometheus
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n monitoring delete serviceaccounts prometheus || true
+    - kubectl -n monitoring delete service prometheus || true
+    - kubectl -n monitoring delete deployments.apps prometheus || true
+    - kubectl delete clusterrolebindings.rbac.authorization.k8s.io prometheus || true
+    - kubectl delete clusterrole prometheus || true
+    - kubectl apply -f src/k8s/environment/manifests/prometheus/clusterRoleBinding.yml
+    - kubectl apply -f src/k8s/environment/manifests/prometheus/clusterRole.yml
+    - kubectl apply -f src/k8s/environment/manifests/prometheus/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/prometheus/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/prometheus/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_prometheus
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/prometheus/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_grafana:
+  stage: deploy_grafana
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n monitoring delete serviceaccounts grafana || true
+    - kubectl -n monitoring delete service grafana || true
+    - kubectl -n monitoring delete deployments.apps grafana || true
+    - kubectl -n monitoring delete pvc grafana-storage-pvc || true
+    - kubectl delete pv grafana-storage-pv || true
+    - kubectl apply -f src/k8s/environment/manifests/grafana/data-storage.yml
+    - kubectl apply -f src/k8s/environment/manifests/grafana/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/grafana/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/grafana/deployment.yml
+    - |
+        #!/bin/sh
+        SECRET_EXISTS=$(kubectl get secret grafana-tls -n monitoring --ignore-not-found)
+        if [ -z "$SECRET_EXISTS" ]; then
+          kubectl apply -f src/k8s/environment/manifests/grafana/ingress.yml
+        fi
+  rules:
+    - exists:
+        - src/ci/stages/deploy_grafana
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/grafana/*
+          - src/k8s/environment/secrets_remote/*
+
+deploy_app:
+  stage: deploy_app
+  image: ublin/worker:latest
+  script:
+    - mkdir -p ~/.kube
+    - echo "$GPG_KEY" > private.key
+    - gpg --import private.key
+    - gpg -d src/k8s/environment/secrets_remote/kube.config > ~/.kube/config
+    - kubectl -n vpn delete serviceaccounts vpn-bot || true
+    - kubectl -n vpn delete deployments.apps vpn-bot || true
+    - kubectl apply -f src/k8s/environment/manifests/vpn-bot/serviceAccount.yml
+    - kubectl apply -f src/k8s/environment/manifests/vpn-bot/service.yml
+    - kubectl apply -f src/k8s/environment/manifests/vpn-bot/deployment.yml
+  rules:
+    - exists:
+        - src/ci/stages/deploy_app
+    - changes:
+        paths:
+          - src/k8s/environment/manifests/vpn-bot/*
+          - src/main/java/home/vpn/bot/*
+          - src/k8s/environment/secrets_remote/*

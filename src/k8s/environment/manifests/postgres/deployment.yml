@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: vpn
+  labels:
+    name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: postgres
+  template:
+    metadata:
+      labels:
+        name: postgres
+    spec:
+      serviceAccountName: postgres
+      volumes:
+        - name: psql-storage
+          persistentVolumeClaim:
+            claimName: psql-storage-pvc
+      containers:
+        - name: postgres
+          image: "ublin/postgres:latest"
+          imagePullPolicy: Always
+          env:
+            - name: POSTGRESQL_USERNAME
+              value: "sa"
+            - name: POSTGRESQL_PASSWORD
+              value: "{{PASSWORD}}"
+          volumeMounts:
+            - name: psql-storage
+              mountPath: "/bitnami/postgresql/data"
+              readOnly: false
+          ports:
+            - name: psql-tcp
+              containerPort: 5432
+              protocol: TCP

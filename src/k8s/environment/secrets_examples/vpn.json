@@ -1,0 +1,24 @@
+{
+  "router_IP": "SOME_IP",
+  "router_PORT": 12345,
+  "router_USER": "SOME_USER",
+  "router_PASSWOD": "SOME_PASSWORD",
+  "template_ADD_ROUTE": "ip route IP_MASK OpenVPN1 auto",
+  "template_DELETE_ROUTE": "no ip route IP_MASK OpenVPN1",
+  "template_SHOW_ROUTES": "show ip route",
+  "template_SHOW_ROUTES_PARSE_FLAG": "OpenVPN1",
+
+  "openvpn_server_ip": "OPENVPN_ENTRYPOINT",
+  "openvpn_port": "12345",
+  "openvpn_protocol": "tcp",
+
+  "database_address": "DB_ADDRESS",
+  "database_port": "5432",
+  "database_user": "SOME_USER",
+  "database_password": "SOME_PASSWORD",
+
+  "bot_name": "SOME_BOT_NAME",
+  "bot_token": "SOME_BOT_TOKEN",
+  "dns_resolver_address": "SOME_DNS",
+  "whois_resolver_address": "SOME_WHOIS"
+}

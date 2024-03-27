@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stubby
+  namespace: vpn
+  labels:
+    name: stubby
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: stubby
+  template:
+    metadata:
+      labels:
+        name: stubby
+    spec:
+      serviceAccountName: stubby
+      volumes:
+        - name: stubby-config
+          secret:
+            secretName: stubby-config
+      containers:
+        - name: stubby
+          image: "ublin/stubby:latest"
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: stubby-config
+              mountPath: "/config"
+              readOnly: true
+          ports:
+            - name: stubby-udp
+              containerPort: 53
+              protocol: UDP
+            - name: stubby-tcp
+              containerPort: 53
+              protocol: TCP

@@ -1,0 +1,15 @@
+build_worker: false
+build_postgres: false
+build_shadowsocks: false
+build_socat: false
+build_stubby: false
+build_app: false
+deploy_secrets: false
+deploy_postgres: false
+deploy_shadowsocks: false
+deploy_socat: false
+deploy_stubby: false
+deploy_nExporter: false
+deploy_prometheus: false
+deploy_grafana: false
+deploy_app: false

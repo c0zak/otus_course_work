@@ -1,0 +1,3 @@
+CREATE TABLE lastUpdate (
+    Date TIMESTAMP NOT NULL
+);

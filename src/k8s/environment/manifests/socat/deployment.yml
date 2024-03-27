@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: socat
+  namespace: vpn
+  labels:
+    name: socat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: socat
+  template:
+    metadata:
+      labels:
+        name: socat
+    spec:
+      serviceAccountName: socat
+      volumes:
+        - name: socat-config
+          secret:
+            secretName: socat-config
+      containers:
+        - name: socat
+          image: "ublin/socat:latest"
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: socat-config
+              mountPath: "/config"
+              readOnly: true
+          ports:
+            - name: socat-tcp
+              containerPort: 22496
+              protocol: TCP

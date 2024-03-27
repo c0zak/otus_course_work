@@ -1,0 +1,25 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+ name: grafana-ingress-https
+ namespace: monitoring
+ annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-issuer
+spec:
+ ingressClassName: nginx
+ tls:
+ - hosts:
+    - grafana.ublin.keenetic.pro
+   secretName: grafana-tls
+ rules:
+ - host: grafana.ublin.keenetic.pro
+   http:
+     paths:
+     - path: /
+       pathType: Prefix
+       backend:
+         service:
+           name: grafana
+           port:
+             number: 3000

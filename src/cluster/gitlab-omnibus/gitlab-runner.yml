@@ -1,0 +1,115 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: gitlab-runner
+ namespace: gitlab
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+ name: gitlab-runner
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/attach", "pods/log", "secrets", "services", "events"]
+    verbs: ["create", "delete", "get", "list", "watch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "delete", "get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["create", "delete", "get", "list", "watch", "update"]
+
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitlab-runner
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-runner
+    namespace: gitlab
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-runner-config
+  namespace: gitlab
+data:
+  config.toml: |
+    concurrent = 2
+    check_interval = 3
+    log_level = "info"
+    listen_address = '[::]:9252'
+    [[runners]]
+      executor = "kubernetes"
+      url = "https://gitlab.ublin.keenetic.pro"
+      clone_url = "https://gitlab.ublin.keenetic.pro"
+      token = "SOME_TOKEN"
+      cache_dir = "/tmp/gitlab/cache"
+      [runners.kubernetes]
+        memory_limit = "1Gi"
+        [runners.kubernetes.node_selector]
+          "kubernetes.io/hostname" = "smart.house.home"
+        [[runners.kubernetes.volumes.host_path]]
+          name = "gitlab-cache"
+          mount_path = "/tmp/gitlab/cache"
+          host_path = "/home/core/data/gitlab-runner/data"
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: gitlab-runner
+ namespace: gitlab
+spec:
+ replicas: 1
+ selector:
+    matchLabels:
+      app: gitlab-runner
+ template:
+    metadata:
+      labels:
+        app: gitlab-runner
+    spec:
+      serviceAccountName: gitlab-runner
+      containers:
+      - name: gitlab-runner
+        image: gitlab/gitlab-runner:latest
+        env:
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_SERVICE_ACCOUNT
+          value: "gitlab-runner"
+        - name: KUBERNETES_SERVICE_ACCOUNT_OVERWRITE_ALLOWED
+          value: "true"
+        - name: KUBERNETES_CPU_LIMIT
+          value: "1"
+        - name: KUBERNETES_CPU_REQUEST
+          value: "500m"
+        - name: KUBERNETES_MEMORY_LIMIT
+          value: "1Gi"
+        - name: KUBERNETES_MEMORY_REQUEST
+          value: "500Mi"
+        volumeMounts:
+        - mountPath: /etc/gitlab-runner
+          name: config
+        - mountPath: /var/run/docker.sock
+          name: docker-sock
+      volumes:
+      - name: config
+        configMap:
+            name: gitlab-runner-config
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
